@@ -1,5 +1,27 @@
 import re
+import logging
+from threading import Lock
 from agithub.base import API, ConnectionProperties, Client
+
+logging.basicConfig(format='%(asctime)s [%(levelname)s] %(module)s.%(funcName)s - %(message)s')
+logger = logging.getLogger('dockerhub-proxy')
+
+
+def _with_login(method):
+    @wraps(method)
+    def wrapper(self, *args, **kwargs):
+        self.login()
+        response = method(self, *args, **kwargs)
+
+        if not response:
+            logger.warn('Failed to fetch response, possible authentication issue, retrying after login...')
+
+            self.login()
+            response = method(self, *args, **kwargs)
+
+        return response
+
+    return wrapper
 
 
 class LoginFailedException(BaseException):
@@ -52,6 +74,8 @@ class DockerHub(API):
         self._username = username
         self._password = password
 
+        self._login_lock = Lock()
+
         props = ConnectionProperties(
             api_url=kwargs.pop('api_url', 'hub.docker.com'),
             secure_http=True
@@ -61,19 +85,20 @@ class DockerHub(API):
         self.setConnectionProperties(props)
 
     def login(self):
-        if not self._username or not self._password:
-            if self.client.has_auth_token():
-                return  # let's go with the existing token instead
-
-            raise LoginFailedException('Missing username or password')
-
-        status, response = self.v2.users.login.post(body={'username': self._username, 'password': self._password})
-
-        if status == 200:
-            self.client.set_auth_token(response.get('token'))
-
-        else:
-            raise LoginFailedException('HTTP %s' % status, response)
+        with self._login_lock:
+            if not self._username or not self._password:
+                if self.client.has_auth_token():
+                    return  # let's go with the existing token instead
+    
+                raise LoginFailedException('Missing username or password')
+    
+            status, response = self.v2.users.login.post(body={'username': self._username, 'password': self._password})
+    
+            if status == 200:
+                self.client.set_auth_token(response.get('token'))
+    
+            else:
+                raise LoginFailedException('HTTP %s' % status, response)
 
     def get_user_details(self, username):
         return self._check_and_return(self.v2.users[username].get)
@@ -86,6 +111,23 @@ class DockerHub(API):
 
     def get_tags(self, username, repository_name, page_size=100):
         return self._fetch_all_pages(self.v2.repositories[username][repository_name].tags.get, page=1, page_size=page_size)
+    
+    def get_dockerfile(self, username, repository_name):
+        return self._check_and_return(self.v2.repositories[username][repository_name].dockerfile.get)
+
+    def get_autobuild_settings(self, username, repository_name):
+        return self._check_and_return(self.v2.repositories[username][repository_name].autobuild.get)
+
+    def get_comments(self, username, repository_name, page_size=100):
+        # TODO limit this ?
+        return self._fetch_all_pages(self.v2.repositories[username][repository_name].comments.get, page=1, page_size=page_size)
+
+    def get_build_history(self, username, repository_name, page_size=100):
+        # TODO limit this ?
+        return self._fetch_all_pages(self.v2.repositories[username][repository_name].buildhistory.get, page=1, page_size=page_size)
+
+    def get_build_details(self, username, repository_name, build_code):
+        return self._check_and_return(self.v2.repositories[username][repository_name].buildhistory[build_code].get)
 
     @staticmethod
     def _check_and_return(incomplete_request):
