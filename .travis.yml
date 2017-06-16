@@ -35,6 +35,9 @@ after_success:
   - >
     if [ "$SKIP_CC" != "true" ]; then
       ./cc-test-reporter after-build --exit-code $TRAVIS_TEST_RESULT
+      echo 'Test report submitted'
+    else
+      echo 'Not submitting test report'
     fi
 env:
   matrix:
