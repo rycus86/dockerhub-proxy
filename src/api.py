@@ -81,6 +81,12 @@ class DockerHub(API):
     def get_repositories(self, username, page_size=100):
         return self._fetch_all_pages(self.v2.repositories[username].get, page=1, page_size=page_size)
 
+    def get_repository(self, username, repository_name):
+        return self._check_and_return(self.v2.repositories[username][repository_name].get)
+
+    def get_tags(self, username, repository_name, page_size=100):
+        return self._fetch_all_pages(self.v2.repositories[username][repository_name].tags.get, page=1, page_size=page_size)
+
     @staticmethod
     def _check_and_return(incomplete_request):
         status, response = incomplete_request()

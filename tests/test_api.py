@@ -42,3 +42,34 @@ class DockerHubTest(unittest.TestCase):
         self.assertIsNotNone(repos)
         self.assertGreater(repos.get('count'), 0)
         self.assertEqual(len(repos.get('results')), repos.get('count'))
+
+        # TODO assert properties
+
+    def test_get_repository(self):
+        repository = self.api.get_repository('rycus86', 'github-proxy')
+        
+        self.assertIsNotNone(repository)
+        
+        self.assertIn('namespace', repository)
+        self.assertIn('name', repository)
+        self.assertIn('user', repository)
+        self.assertIn('repository_type', repository)
+        self.assertIn('is_private', repository)
+        self.assertIn('is_automated', repository)
+        self.assertIn('description', repository)
+        self.assertIn('full_description', repository)
+        self.assertIn('last_updated', repository)
+        self.assertIn('pull_count', repository)
+        self.assertIn('star_count', repository)
+
+    def test_get_repository_tags(self):
+        tags = self.api.get_tags('rycus86', 'github-proxy')
+
+        self.assertIsNotNone(tags)
+        self.assertGreater(tags.get('count'), 0)
+        self.assertEqual(len(tags.get('results')), tags.get('count'))
+
+        for tag in tags.get('results'):
+            self.assertIn('name', tag)
+            self.assertIn('last_updated', tag)
+            self.assertIn('full_size', tag)
