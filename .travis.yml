@@ -36,4 +36,4 @@ after_success:
 env:
   matrix:
   - DOCKER_TAG=latest DOCKERFILE=Dockerfile
-#  - DOCKER_TAG=armhf  DOCKERFILE=Dockerfile.armhf DOCKER_PUSH=yes
+  - DOCKER_TAG=armhf  DOCKERFILE=Dockerfile.armhf DOCKER_PUSH=yes
