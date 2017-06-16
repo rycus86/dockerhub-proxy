@@ -1,10 +1,11 @@
 import os
-import unittest
+from unittest import SkipTest
+from unittest_helper import TestBase
 
-from api import DockerHub
+from api import DockerHub, LoginFailedException
 
 
-class DockerHubTest(unittest.TestCase):
+class DockerHubTest(TestBase):
     def setUp(self):
         username = os.environ.get('DOCKER_USERNAME')
         password = os.environ.get('DOCKER_PASSWORD')
@@ -20,81 +21,83 @@ class DockerHubTest(unittest.TestCase):
         self.assertTrue(self.api.client.has_auth_token(),
                         msg='Failed to get an authentication token')
 
-    def test_get_user_details(self):
+    def test_invalid_login(self):
+        with self.assertRaises(LoginFailedException):
+            DockerHub(username='fake', password='N0tG00d').login()
+
+    def test_invalid_token_is_renewed(self):
+        self.api.client.set_auth_token('1nv4l!d')
+
         user = self.api.get_user_details('rycus86')
 
         self.assertIsNotNone(user)
 
-        for expected in ('id', 'username', 'full_name', 'location', 'company',
-                         'profile_url', 'date_joined', 'gravatar_url', 'type'):
-            self.assertIn(expected, user)
+    def test_does_not_discard_token_if_access_details_are_missing(self):
+        if not self.api.client.has_auth_token():
+            raise SkipTest('No access token present')
+
+        self.assertTrue(self.api.client.has_auth_token())
+
+        setattr(self.api, '_username', '')
+        setattr(self.api, '_password', '')
+
+        self.assertTrue(self.api.client.has_auth_token())
+
+        self.api.login()
+
+        self.assertTrue(self.api.client.has_auth_token())
+
+    def test_returns_none_when_invalid(self):
+        repo = self.api.get_repository('rycus86', 'bad-invalid-wrong')
+
+        self.assertIsNone(repo)
+
+    def test_get_user_details(self):
+        user = self.api.get_user_details('rycus86')
+
+        self.verify_user_details(user)
 
     def test_get_repositories(self):
         repos = self.api.get_repositories('rycus86')
 
-        self.assertIsNotNone(repos)
-        self.assertGreater(repos.get('count'), 0)
-        self.assertEqual(len(repos.get('results')), repos.get('count'))
-
-        # TODO assert properties
+        self.verify_repository_list(repos)
 
     def test_get_repositories_with_pagination(self):
         repos = self.api.get_repositories('library')
 
-        self.assertIsNotNone(repos)
-        self.assertGreater(repos.get('count'), 0)
-        self.assertEqual(len(repos.get('results')), repos.get('count'))
-
-        # TODO assert properties
+        self.verify_repository_list(repos)
 
     def test_get_repository(self):
         repository = self.api.get_repository('rycus86', 'github-proxy')
-        
-        self.assertIsNotNone(repository)
-        
-        self.assertIn('namespace', repository)
-        self.assertIn('name', repository)
-        self.assertIn('user', repository)
-        self.assertIn('repository_type', repository)
-        self.assertIn('is_private', repository)
-        self.assertIn('is_automated', repository)
-        self.assertIn('description', repository)
-        self.assertIn('full_description', repository)
-        self.assertIn('last_updated', repository)
-        self.assertIn('pull_count', repository)
-        self.assertIn('star_count', repository)
+
+        self.verify_repository(repository, full=True)
 
     def test_get_repository_tags(self):
         tags = self.api.get_tags('rycus86', 'github-proxy')
 
-        self.assertIsNotNone(tags)
-        self.assertGreater(tags.get('count'), 0)
-        self.assertEqual(len(tags.get('results')), tags.get('count'))
-
-        for tag in tags.get('results'):
-            self.assertIn('name', tag)
-            self.assertIn('last_updated', tag)
-            self.assertIn('full_size', tag)
+        self.verify_tags(tags)
 
     def test_get_dockerfile(self):
-        # contents { \n separated }
-        pass
+        dockerfile = self.api.get_dockerfile('rycus86', 'github-proxy')
+
+        self.verify_dockerfile(dockerfile)
 
     def test_get_autobuild_settings(self):
-        # active, build_name, build_tags, docker_url, provider, repo_type, repo_web_url, source_url
-        # build_tags: [ dockerfile_location, name, source_name, source_type ]
-        pass
+        settings = self.api.get_autobuild_settings('rycus86', 'github-proxy')
+
+        self.verify_autobuild_settings(settings)
 
     def test_get_comments(self):
-        # TODO properties
-        pass
+        comments = self.api.get_comments('library', 'nginx', limit=1000)
+
+        self.verify_comments(comments)
 
     def test_get_build_history(self):
-        # build_code, cause, created_date, dockertag_name, id, last_updated, status (10=success)
-        pass
+        history = self.api.get_build_history('rycus86', 'github-proxy', limit=1000)
+
+        self.verify_build_history(history)
 
     def test_get_build_details(self):
-        # build_code, build_results, cause, created_date, dockertag_name, id, last_updated, statusi
-        # build_results: [ build_code, build_path, created_at, docker_repo, docker_tag, docker_user, dockerfile_contents, error, failure, last_updated, logs {\n}, readme_contents {\n}, source_branch, source_type, source_url ]
-        pass
+        details = self.api.get_build_details('rycus86', 'github-proxy', 'bt9rkscwy2kuthbm2u9dchk')
 
+        self.verify_build_details(details)

@@ -1,12 +1,39 @@
 language: python
 python:
   - '2.7'
+sudo:
+  - required
+services:
+  - docker
 install:
   - pip install -r requirements.txt
-  - pip install coverage
+  - pip install coveralls
+before_script:
+  - curl -L https://codeclimate.com/downloads/test-reporter/test-reporter-latest-linux-amd64 > ./cc-test-reporter
+  - chmod +x ./cc-test-reporter
+  - ./cc-test-reporter before-build
 script:
   # python tests
   - PYTHONPATH=src python -m coverage run --branch --source=src -m unittest discover -s tests -v
 after_success:
+  # docker build
+  - docker run --rm --privileged multiarch/qemu-user-static:register --reset
+  - docker build -t dockerhub-proxy:$DOCKER_TAG -f $DOCKERFILE .
+  # push docker image
+  - >
+    if [ "$DOCKER_PUSH" == "yes" ]; then
+      docker login -u="rycus86" -p="$DOCKER_PASSWORD"
+      docker tag dockerhub-proxy:$DOCKER_TAG rycus86/dockerhub-proxy:$DOCKER_TAG
+      docker push rycus86/dockerhub-proxy:$DOCKER_TAG
+    else
+      echo 'Not pushing to Docker Hub'
+    fi
   # coverage reports
+  - coveralls
   - python -m coverage report -m
+  - python -m coverage xml
+  - ./cc-test-reporter after-build --exit-code $TRAVIS_TEST_RESULT
+env:
+  matrix:
+  - DOCKER_TAG=latest DOCKERFILE=Dockerfile
+#  - DOCKER_TAG=armhf  DOCKERFILE=Dockerfile.armhf DOCKER_PUSH=yes

@@ -1,5 +1,6 @@
 import re
 import logging
+from functools import wraps
 from threading import Lock
 from agithub.base import API, ConnectionProperties, Client
 
@@ -10,7 +11,9 @@ logger = logging.getLogger('dockerhub-proxy')
 def _with_login(method):
     @wraps(method)
     def wrapper(self, *args, **kwargs):
-        self.login()
+        if not self.client.has_auth_token():
+            self.login()
+
         response = method(self, *args, **kwargs)
 
         if not response:
@@ -86,46 +89,54 @@ class DockerHub(API):
 
     def login(self):
         with self._login_lock:
-            if not self._username or not self._password:
-                if self.client.has_auth_token():
-                    return  # let's go with the existing token instead
-    
-                raise LoginFailedException('Missing username or password')
-    
-            status, response = self.v2.users.login.post(body={'username': self._username, 'password': self._password})
-    
-            if status == 200:
-                self.client.set_auth_token(response.get('token'))
-    
-            else:
-                raise LoginFailedException('HTTP %s' % status, response)
+            if self._username and self._password:
+                status, response = self.v2.users.login.post(body={
+                    'username': self._username, 'password': self._password
+                })
 
+                if status == 200:
+                    self.client.set_auth_token(response.get('token'))
+
+                else:
+                    raise LoginFailedException('HTTP %s' % status, response)
+
+    @_with_login
     def get_user_details(self, username):
         return self._check_and_return(self.v2.users[username].get)
 
-    def get_repositories(self, username, page_size=100):
-        return self._fetch_all_pages(self.v2.repositories[username].get, page=1, page_size=page_size)
+    @_with_login
+    def get_repositories(self, username, page_size=100, limit=10000):
+        return self._fetch_all_pages(self.v2.repositories[username].get,
+                                     page=1, page_size=page_size, limit=limit)
 
+    @_with_login
     def get_repository(self, username, repository_name):
         return self._check_and_return(self.v2.repositories[username][repository_name].get)
 
-    def get_tags(self, username, repository_name, page_size=100):
-        return self._fetch_all_pages(self.v2.repositories[username][repository_name].tags.get, page=1, page_size=page_size)
-    
+    @_with_login
+    def get_tags(self, username, repository_name, page_size=100, limit=1000):
+        return self._fetch_all_pages(self.v2.repositories[username][repository_name].tags.get,
+                                     page=1, page_size=page_size, limit=limit)
+
+    @_with_login
     def get_dockerfile(self, username, repository_name):
         return self._check_and_return(self.v2.repositories[username][repository_name].dockerfile.get)
 
+    @_with_login
     def get_autobuild_settings(self, username, repository_name):
         return self._check_and_return(self.v2.repositories[username][repository_name].autobuild.get)
 
-    def get_comments(self, username, repository_name, page_size=100):
-        # TODO limit this ?
-        return self._fetch_all_pages(self.v2.repositories[username][repository_name].comments.get, page=1, page_size=page_size)
+    @_with_login
+    def get_comments(self, username, repository_name, page_size=100, limit=1000):
+        return self._fetch_all_pages(self.v2.repositories[username][repository_name].comments.get,
+                                     page=1, page_size=page_size, limit=limit)
 
-    def get_build_history(self, username, repository_name, page_size=100):
-        # TODO limit this ?
-        return self._fetch_all_pages(self.v2.repositories[username][repository_name].buildhistory.get, page=1, page_size=page_size)
+    @_with_login
+    def get_build_history(self, username, repository_name, page_size=100, limit=1000):
+        return self._fetch_all_pages(self.v2.repositories[username][repository_name].buildhistory.get,
+                                     page=1, page_size=page_size, limit=limit)
 
+    @_with_login
     def get_build_details(self, username, repository_name, build_code):
         return self._check_and_return(self.v2.repositories[username][repository_name].buildhistory[build_code].get)
 
@@ -137,7 +148,7 @@ class DockerHub(API):
             return response
 
     @staticmethod
-    def _fetch_all_pages(incomplete_request, page, page_size):
+    def _fetch_all_pages(incomplete_request, page, page_size, limit):
         results = list()
 
         while True:
@@ -152,15 +163,16 @@ class DockerHub(API):
                 results.extend(response.get('results'))
 
                 if response.get('next'):
-                    page += 1
+                    if not limit or len(results) < limit:
+                        page += 1
+                        continue
 
-                else:
-                    count = response.get('count')
+                count = response.get('count')
 
-                    return {
-                        'count': count,
-                        'results': results
-                    }
+                return {
+                    'count': count,
+                    'results': results
+                }
 
             else:
                 break

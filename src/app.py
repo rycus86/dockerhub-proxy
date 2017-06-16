@@ -1,6 +1,6 @@
 import os
 import logging
-from flask import Flask, jsonify, make_response
+from flask import Flask, jsonify
 from flask_cache import Cache
 
 from api import DockerHub
@@ -43,6 +43,41 @@ def get_repository(username, repository):
 def list_tags(username, repository):
     logger.info('Fetching tags for %s/%s', username, repository)
     return jsonify(api.get_tags(username, repository))
+
+
+@app.route('/repositories/<username>/<repository>/dockerfile')
+@cache.memoize(timeout=300)
+def get_dockerfile(username, repository):
+    logger.info('Fetching the Dockerfile for %s/%s', username, repository)
+    return jsonify(api.get_dockerfile(username, repository))
+
+
+@app.route('/repositories/<username>/<repository>/autobuild')
+@cache.memoize(timeout=300)
+def get_autobuild_settings(username, repository):
+    logger.info('Fetching autobuild settings for %s/%s', username, repository)
+    return jsonify(api.get_autobuild_settings(username, repository))
+
+
+@app.route('/repositories/<username>/<repository>/comments')
+@cache.memoize(timeout=300)
+def list_comments(username, repository):
+    logger.info('Fetching comments for %s/%s', username, repository)
+    return jsonify(api.get_comments(username, repository))
+
+
+@app.route('/repositories/<username>/<repository>/builds')
+@cache.memoize(timeout=300)
+def list_build_history(username, repository):
+    logger.info('Fetching build history for %s/%s', username, repository)
+    return jsonify(api.get_build_history(username, repository))
+
+
+@app.route('/repositories/<username>/<repository>/builds/<build_code>')
+@cache.memoize(timeout=300)
+def get_build_details(username, repository, build_code):
+    logger.info('Fetching details for build #%s on %s/%s', build_code, username, repository)
+    return jsonify(api.get_build_details(username, repository, build_code))
 
 
 if __name__ == '__main__':
