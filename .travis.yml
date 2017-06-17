@@ -41,5 +41,6 @@ after_success:
     fi
 env:
   matrix:
-  - DOCKER_TAG=latest DOCKERFILE=Dockerfile
-  - DOCKER_TAG=armhf  DOCKERFILE=Dockerfile.armhf DOCKER_PUSH=yes SKIP_CC=true
+  - DOCKER_TAG=latest  DOCKERFILE=Dockerfile
+  - DOCKER_TAG=armhf   DOCKERFILE=Dockerfile.armhf   DOCKER_PUSH=yes SKIP_CC=true
+  - DOCKER_TAG=aarch64 DOCKERFILE=Dockerfile.aarch64 DOCKER_PUSH=yes SKIP_CC=true
