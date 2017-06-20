@@ -1,3 +1,4 @@
 agithub
 Flask
 Flask-Cache
+flask-cors
