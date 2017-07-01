@@ -5,6 +5,9 @@ RUN apk add --no-cache python py2-pip ca-certificates
 ADD requirements.txt /tmp/requirements.txt
 RUN pip install -r /tmp/requirements.txt
 
+RUN adduser -S webapp
+USER webapp
+
 ADD src /app
 WORKDIR /app
 
