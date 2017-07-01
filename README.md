@@ -105,9 +105,9 @@ while the *ARM* builds are uploaded from [Travis](https://travis-ci.org/rycus86/
 
 To run it:
 ```shell
-docker run -d --name="dockerhub-proxy" -p 5000:5000           \
-  -e DOCKERHUB_USERNAME='user' -e DOCKERHUB_PASSWORD='pass'      \
-  -e CORS_ORIGINS='http://site.example.com,*.website.com'  \
+docker run -d --name="dockerhub-proxy" -p 5000:5000          \
+  -e DOCKERHUB_USERNAME='user' -e DOCKERHUB_PASSWORD='pass'  \
+  -e CORS_ORIGINS='http://site.example.com,*.website.com'    \
   rycus86/dockerhub-proxy:latest
 ```
 
