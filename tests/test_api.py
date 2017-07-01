@@ -7,8 +7,8 @@ from api import DockerHub, LoginFailedException
 
 class DockerHubTest(TestBase):
     def setUp(self):
-        username = os.environ.get('DOCKER_USERNAME')
-        password = os.environ.get('DOCKER_PASSWORD')
+        username = os.environ.get('DOCKERHUB_USERNAME')
+        password = os.environ.get('DOCKERHUB_PASSWORD')
 
         self.api = DockerHub(username=username, password=password)
 

@@ -10,9 +10,9 @@ app = Flask(__name__)
 cache = Cache(app, config={'CACHE_TYPE': 'simple'})
 CORS(app, origins=os.environ.get('CORS_ORIGINS', 'http://localhost:?.*').split(','), methods='GET')
 
-api = DockerHub(username=os.environ.get('DOCKER_USERNAME'),
-                password=os.environ.get('DOCKER_PASSWORD'),
-                token=os.environ.get('DOCKER_TOKEN'))
+api = DockerHub(username=os.environ.get('DOCKERHUB_USERNAME'),
+                password=os.environ.get('DOCKERHUB_PASSWORD'),
+                token=os.environ.get('DOCKERHUB_TOKEN'))
 
 logging.basicConfig(format='%(asctime)s [%(levelname)s] %(module)s.%(funcName)s - %(message)s')
 logger = logging.getLogger('docker-proxy')
