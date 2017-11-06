@@ -1,54 +1,62 @@
 language: python
 python:
   - '2.7'
+
 sudo:
   - required
 services:
   - docker
-install:
-  - pip install -r requirements.txt
-  - pip install coveralls
-before_script:
-  - >
-    for ALTERNATIVE_DOCKERFILE in Dockerfile.*; do
-      DIFF_LINES=$(diff -y --suppress-common-lines Dockerfile $ALTERNATIVE_DOCKERFILE | wc -l)
-      if [ "$DIFF_LINES" -ne "1" ]; then
-        echo "$ALTERNATIVE_DOCKERFILE has $DIFF_LINES lines different then the main Dockerfile, expected only one."
-        exit 1
-      fi
-    done
-  - curl -L https://codeclimate.com/downloads/test-reporter/test-reporter-latest-linux-amd64 > ./cc-test-reporter
-  - chmod +x ./cc-test-reporter
-  - ./cc-test-reporter before-build
-script:
-  # python tests
-  - PYTHONPATH=src python -m coverage run --branch --source=src -m unittest discover -s tests -v
-after_success:
-  # docker build
-  - docker run --rm --privileged multiarch/qemu-user-static:register --reset
-  - docker build -t dockerhub-proxy:$DOCKER_TAG -f $DOCKERFILE .
-  # push docker image
-  - >
-    if [ "$DOCKER_PUSH" == "yes" ] && [ "$TRAVIS_BRANCH" == "master" ]; then
-      docker login -u="rycus86" -p="$DOCKER_PASSWORD"
-      docker tag dockerhub-proxy:$DOCKER_TAG rycus86/dockerhub-proxy:$DOCKER_TAG
-      docker push rycus86/dockerhub-proxy:$DOCKER_TAG
-    else
-      echo 'Not pushing to Docker Hub'
-    fi
-  # coverage reports
-  - coveralls
-  - python -m coverage report -m
-  - python -m coverage xml
-  - >
-    if [ "$SKIP_CC" != "true" ]; then
-      ./cc-test-reporter after-build --exit-code $TRAVIS_TEST_RESULT
-      echo 'Test report submitted'
-    else
-      echo 'Not submitting test report'
-    fi
-env:
-  matrix:
-  - DOCKER_TAG=latest  DOCKERFILE=Dockerfile
-  - DOCKER_TAG=armhf   DOCKERFILE=Dockerfile.armhf   DOCKER_PUSH=yes SKIP_CC=true
-  - DOCKER_TAG=aarch64 DOCKERFILE=Dockerfile.aarch64 DOCKER_PUSH=yes SKIP_CC=true
+install: skip
+
+jobs:
+  include:
+    - stage: test
+      script:
+        # prepare python modules
+        - pip install -r requirements.txt
+        - pip install coveralls
+        # prepare reporter
+        - curl -L https://codeclimate.com/downloads/test-reporter/test-reporter-latest-linux-amd64 > ./cc-test-reporter
+        - chmod +x ./cc-test-reporter
+        # python tests
+        - PYTHONPATH=src python -m coverage run --branch --source=src -m unittest discover -s tests -v
+        # coverage reports
+        - python -m coverage report -m
+        - python -m coverage xml
+        - |
+          if [[ "$(python --version 2>&1)" = *2.7* ]]; then
+            coveralls || exit 0
+            ./cc-test-reporter after-build --exit-code $TRAVIS_TEST_RESULT || exit 0
+          fi
+
+    - &deploy-stage
+      stage: deploy
+      if: branch = master
+      script:
+        - docker run --rm --privileged multiarch/qemu-user-static:register --reset
+        - docker build -t dockerhub-proxy:$DOCKER_TAG -f $DOCKERFILE .
+        - docker tag dockerhub-proxy:$DOCKER_TAG rycus86/dockerhub-proxy:$DOCKER_TAG
+        - docker login -u="rycus86" -p="$DOCKER_PASSWORD"
+      after_success:
+        - docker push rycus86/dockerhub-proxy:$DOCKER_TAG
+      env:
+        - DOCKER_TAG=amd64
+        - DOCKERFILE=Dockerfile
+
+    - <<: *deploy-stage
+      env:
+        - DOCKER_TAG=armhf
+        - DOCKERFILE=Dockerfile.armhf
+
+    - <<: *deploy-stage
+      env:
+        - DOCKER_TAG=aarch64
+        - DOCKERFILE=Dockerfile.aarch64
+
+    - stage: manifest
+      if: branch = master
+      script:
+        - docker login -u="rycus86" -p="${DOCKER_PASSWORD}"
+        - curl -fsSL https://github.com/estesp/manifest-tool/releases/download/v0.7.0/manifest-tool-linux-amd64 > ./manifest-tool
+        - chmod +x ./manifest-tool
+        - ./manifest-tool push from-spec manifest.yml
