@@ -1,13 +1,18 @@
 import os
 import logging
+
 from flask import Flask, jsonify
 from flask_cache import Cache
 from flask_cors import CORS
+
+from prometheus_flask_exporter import PrometheusMetrics
 
 from api import DockerHub
 
 app = Flask(__name__)
 cache = Cache(app, config={'CACHE_TYPE': 'simple'})
+
+PrometheusMetrics(app)
 CORS(app, origins=os.environ.get('CORS_ORIGINS', 'http://localhost:?.*').split(','), methods='GET')
 
 api = DockerHub(username=os.environ.get('DOCKERHUB_USERNAME'),

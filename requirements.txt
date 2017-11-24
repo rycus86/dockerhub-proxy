@@ -2,3 +2,4 @@ agithub
 Flask
 Flask-Cache
 flask-cors
+prometheus-flask-exporter
