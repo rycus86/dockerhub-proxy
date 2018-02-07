@@ -6,6 +6,7 @@ from flask_cache import Cache
 from flask_cors import CORS
 
 from prometheus_flask_exporter import PrometheusMetrics
+from docker_helper import read_configuration
 
 from api import DockerHub
 
@@ -22,11 +23,15 @@ metrics.info(
     float(os.environ.get('BUILD_TIMESTAMP') or '0')
 )
 
-CORS(app, origins=os.environ.get('CORS_ORIGINS', 'http://localhost:?.*').split(','), methods='GET')
+CORS(app, origins=read_configuration(
+    'CORS_ORIGINS', '/var/secrets/secrets.env', default='http://localhost:?.*'
+).split(','), methods='GET')
 
-api = DockerHub(username=os.environ.get('DOCKERHUB_USERNAME'),
-                password=os.environ.get('DOCKERHUB_PASSWORD'),
-                token=os.environ.get('DOCKERHUB_TOKEN'))
+api = DockerHub(
+    username=read_configuration('DOCKERHUB_USERNAME', '/var/secrets/secrets.env'),
+    password=read_configuration('DOCKERHUB_PASSWORD', '/var/secrets/secrets.env'),
+    token=read_configuration('DOCKERHUB_TOKEN', '/var/secrets/secrets.env')
+)
 
 logging.basicConfig(format='%(asctime)s [%(levelname)s] %(module)s.%(funcName)s - %(message)s')
 logger = logging.getLogger('docker-proxy')
